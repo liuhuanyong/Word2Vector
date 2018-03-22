@@ -25,7 +25,7 @@ class SkipGram:
 
     #创建数据集
     def build_dataset(self, words, min_count):
-        # 创建词汇表，选取前50000频数的单词，其余单词认定为Unknown,编号为0,
+        # 创建词汇表，过滤低频次词语，这里使用的人是mincount>=5，其余单词认定为Unknown,编号为0,
         # 这一步在gensim提供的wordvector中，采用的是minicount的方法
         #对原words列表中的单词使用字典中的ID进行编号，即将单词转换成整数，储存在data列表中，同时对UNK进行计数
         count = [['UNK', -1]]

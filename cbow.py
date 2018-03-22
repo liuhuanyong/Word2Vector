@@ -24,7 +24,7 @@ class CBOW:
 
     #创建数据集
     def build_dataset(self, words, min_count):
-        # 创建词汇表，选取前50000频数的单词，其余单词认定为Unknown,编号为0,
+        # 创建词汇表，过滤低频次词语，这里使用的人是mincount>=5，其余单词认定为Unknown,编号为0,
         # 这一步在gensim提供的wordvector中，采用的是minicount的方法
         #对原words列表中的单词使用字典中的ID进行编号，即将单词转换成整数，储存在data列表中，同时对UNK进行计数
         count = [['UNK', -1]]
@@ -51,10 +51,8 @@ class CBOW:
     #生成训练样本，assert断言：申明其布尔值必须为真的判定，如果发生异常，就表示为假
     def generate_batch(self, batch_size, skip_window, data):
         # 该函数根据训练样本中词的顺序抽取形成训练集
-        # 这个函数的功能是对数据data中的每个单词，分别与前一个单词和后一个单词生成一个batch，
-        # 即[data[1],data[0]]和[data[1],data[2]]，其中当前单词data[1]存在batch中，前后单词存在labels中
         # batch_size:每个批次训练多少样本
-        # skip_window:单词最远可以联系的距离（本次实验设为1，即目标单词只能和相邻的两个单词生成样本），2*skip_window>=num_skips
+        # skip_window:单词最远可以联系的距离（本次实验设为5，即目标单词只能和相邻的两个单词生成样本），2*skip_window>=num_skips
 
         span = 2 * skip_window + 1  # [ skip_window target skip_window ]
 
@@ -67,14 +65,14 @@ class CBOW:
             self.data_indexdata_index = (self.data_index + 1) % len(data)
 
         for i in range(batch_size):
-            target = skip_window  # target label at the center of the buffer
-            target_to_avoid = [skip_window]  # we only need to know the words around a given word, not the word itself
+            target = skip_window
+            target_to_avoid = [skip_window]
 
             col_idx = 0
             for j in range(span):
                 if j == span // 2:
                     continue
-                batch[i, col_idx] = buffer[j]  # [skip_window] => middle element
+                batch[i, col_idx] = buffer[j]
                 col_idx += 1
             labels[i, 0] = buffer[target]
 
