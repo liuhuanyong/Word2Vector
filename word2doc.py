@@ -11,7 +11,7 @@ from sklearn.decomposition import PCA
 
 class WordVector:
     def __init__(self):
-        self.dataset = DataLoader().dataset[:10000]
+        self.dataset = DataLoader().dataset
         self.min_count = 5
         self.window_size = 5
         self.word_demension = 200
