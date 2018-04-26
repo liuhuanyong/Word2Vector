@@ -9,20 +9,27 @@ import math
 import random
 import numpy as np
 import tensorflow as tf
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
+from load_data import *
 
 class SkipGram:
-
     def __init__(self):
         self.data_index = 0
-
-    #定义读取数据的函数，并把数据转成列表
-    def read_data(self, filename):
-        with open(filename) as f:
-            words = f.read().split(' ')
+        self.trainpath = './data/data.txt'
+        self.modelpath = './model/skipgram_wordvec.bin'
+        self.min_count = 5#最低词频，保留模型中的词表
+        self.batch_size = 200 # 每次迭代训练选取的样本数目
+        self.embedding_size = 200  # 生成词向量的维度
+        self.window_size = 5  # 考虑前后几个词，窗口大小, skipgram中的中心词-上下文pairs数目就是windowsize *2
+        self.num_sampled = 100  # 负样本采样.
+        self.num_steps = 100000#定义最大迭代次数，创建并设置默认的session，开始实际训练
+        self.dataset = DataLoader().dataset
+        self.words = self.read_data(self.dataset)
+    # 定义读取数据的函数，并把数据转成列表
+    def read_data(self, dataset):
+        words = []
+        for data in dataset:
+            words.extend(data)
         return words
-
     #创建数据集
     def build_dataset(self, words, min_count):
         # 创建词汇表，过滤低频次词语，这里使用的人是mincount>=5，其余单词认定为Unknown,编号为0,
@@ -45,7 +52,6 @@ class SkipGram:
         count[0][1] = unk_count
         # 将dictionary中的数据反转，即可以通过ID找到对应的单词，保存在reversed_dictionary中
         reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-
         return data, count, dictionary, reverse_dictionary
 
     #生成训练样本，assert断言：申明其布尔值必须为真的判定，如果发生异常，就表示为假
@@ -66,7 +72,6 @@ class SkipGram:
         print(batch)  [5242 5242 3084 3084   12   12    6    6]，共8维
         print(labels) [[   0] [3082] [  12] [5242] [   6] [3082] [  12] [ 195]]，共8维
         '''
-
         batch = np.ndarray(shape = (batch_size), dtype = np.int32) #建一个batch大小的数组，保存任意单词
         labels = np.ndarray(shape = (batch_size, 1), dtype = np.int32)#建一个（batch，1）大小的二位数组，保存任意单词前一个或者后一个单词，从而形成一个pair
         span = 2 * window_size + 1 #窗口大小，为3，结构为[ window_size target window_size ][wn-i,wn,wn+i]
@@ -148,62 +153,22 @@ class SkipGram:
             final_embeddings = normalized_embeddings.eval()
 
         return final_embeddings
-
-    #训练主函数
-    def train(self, filepath, modelpath, cluster_imgpath):
-       # filepath = 'text8' #训练数据文件
-       # model_path = 'wordvec.bin'
-       # cluster_imgpath = 'skipgram_cluster.png'
-        min_count = 5#最低词频，保留模型中的词表
-        batch_size = 200 # 每次迭代训练选取的样本数目
-        embedding_size = 200  # 生成词向量的维度
-        window_size = 5  # 考虑前后几个词，窗口大小, skipgram中的中心词-上下文pairs数目就是windowsize *2
-        num_sampled = 100  # 负样本采样.
-        num_steps = 100001#定义最大迭代次数，创建并设置默认的session，开始实际训练
-        words = self.read_data(filepath)
-        print('Data size', len(words))
-        data, count, dictionary, reverse_dictionary = self.build_dataset(words, min_count)
-        print('Reserved words', len(count))
-        print('Most common words (+UNK)', count[:5])
-        print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
-
-        vocabulary_size = len(count)
-        final_embeddings = self.train_wordvec(vocabulary_size, batch_size, embedding_size, window_size, num_sampled, num_steps, data)
-        print('saving embeddings into localpath.......')
-        self.save_embedding(final_embeddings, modelpath, reverse_dictionary)
-        print('clustering words using trained embeddings')
-        self.cluster_show(reverse_dictionary, final_embeddings, cluster_imgpath)
-
-    #定义可视化Word2Vec效果的函数
-    def plot_with_labels(self, low_dim_embs, labels, imagename):
-        assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
-        plt.figure(figsize= (18, 18))
-        for i, label in enumerate(labels):
-            x, y = low_dim_embs[i, :]
-            plt.scatter(x, y)
-            plt.annotate(label, xy = (x, y), xytext= (5, 2), textcoords = 'offset points', ha = 'right', va = 'bottom')
-        plt.savefig(imagename)
-
-    #聚类展示
-    def cluster_show(self, reverse_dictionary, final_embeddings, imagename):
-        #使用tsne进行降维
-        tsne = TSNE(perplexity = 30, n_components = 2, init = 'pca', n_iter = 5000)
-        plot_only = 500
-        low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
-        labels = [reverse_dictionary[i] for i in range(plot_only)]
-        self.plot_with_labels(low_dim_embs, labels, imagename)
-
     #保存embedding文件
-    def save_embedding(self, final_embeddings, modelpath, reverse_dictionary):
-        f = open(modelpath, 'w+')
+    def save_embedding(self, final_embeddings, reverse_dictionary):
+        f = open(self.modelpath, 'w+')
         for index, item in enumerate(final_embeddings):
-            f.write(reverse_dictionary[index] + '\t' + ' '.join([str(vec) for vec in item]) + '\n')
+            f.write(reverse_dictionary[index] + '\t' + ','.join([str(vec) for vec in item]) + '\n')
         f.close()
+    #训练主函数
+    def train(self):
+        data, count, dictionary, reverse_dictionary = self.build_dataset(self.words, self.min_count)
+        vocabulary_size = len(count)
+        final_embeddings = self.train_wordvec(vocabulary_size, self.batch_size, self.embedding_size, self.window_size, self.num_sampled, self.num_steps, data)
+        self.save_embedding(final_embeddings, reverse_dictionary)
 
+def test():
 
-filepath = './data/text8'
-modelpath = './model/skipgram_wordvec.bin'
-cluster_imgpath = './img/skipgram_cluster.png'
+    vector = SkipGram()
+    vector.train()
 
-vector = SkipGram()
-vector.train(filepath, modelpath, cluster_imgpath)
+test()
